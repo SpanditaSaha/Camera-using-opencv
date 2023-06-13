@@ -1,41 +1,35 @@
-# import cv2
-
-# cam = cv2.VideoCapture(0)
-
-# while True:
-#     check, frame = cam.read()
-
-#     cv2.imshow('video', frame)
-
-#     key = cv2.waitKey(1)
-#     if key == 27:
-#         break
-
-# cam.release()
-# cv2.destroyAllWindows()
-
-
-# import the opencv library
+from flask import Flask, render_template, Response
 import cv2
 
+app = Flask(__name__)
 
-# define a video capture object
-vid = cv2.VideoCapture(-1)
+camera = cv2.VideoCapture('rtsp://freja.hiof.no:1935/rtplive/_definst_/hessdalen03.stream')  # use 0 for web camera
+#  for cctv camera use rtsp://username:password@ip_address:554/user=username_password='password'_channel=channel_number_stream=0.sdp' instead of camera
+# for local webcam use cv2.VideoCapture(0)
 
-while(True):
-	
-	# Capture the video frame
-	# by frame
-	ret, frame = vid.read()
+def gen_frames():  # generate frame by frame from camera
+    while True:
+        # Capture frame-by-frame
+        success, frame = camera.read()  # read the camera frame
+        if not success:
+            break
+        else:
+            ret, buffer = cv2.imencode('.jpg', frame)
+            frame = buffer.tobytes()
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')  # concat frame one by one and show result
 
-	# Display the resulting frame
-	cv2.imshow('frame', frame)
-	
-	# the 'q' button is set as the
-	# quitting button you may use any
-	# desired button of your choice
-	if cv2.waitKey(1) & 0xFF == ord('q'):
-		break
+
+@app.route('/video_feed')
+def video_feed():
+    #Video streaming route. Put this in the src attribute of an img tag
+    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+@app.route('/')
+def index():
+    """Video streaming home page."""
+    return render_template('index.html')
 
 
 if __name__ == '__main__':
